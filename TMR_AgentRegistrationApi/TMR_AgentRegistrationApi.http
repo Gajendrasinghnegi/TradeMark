@@ -1,0 +1,6 @@
+@TMR_AgentRegistrationApi_HostAddress = http://localhost:5078
+
+GET {{TMR_AgentRegistrationApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

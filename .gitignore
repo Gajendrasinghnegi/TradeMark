@@ -1,0 +1,27 @@
+# Build output
+bin/
+obj/
+[Bb]uild/
+[Dd]ebug/
+[Rr]elease/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet
+packages/
+
+# Logs
+*.log
+
+# Environment and secrets
+.env
+appsettings.Development.json
+
+# OS files
+Thumbs.db
+.DS_Store

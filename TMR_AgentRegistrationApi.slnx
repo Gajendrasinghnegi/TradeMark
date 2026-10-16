@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="TMR_AgentRegistration.Application/TMR_AgentRegistration.Application.csproj" />
+  <Project Path="TMR_AgentRegistration.Domain/TMR_AgentRegistration.Domain.csproj" />
+  <Project Path="TMR_AgentRegistration.Infrastructure/TMR_AgentRegistration.Infrastructure.csproj" />
+  <Project Path="TMR_AgentRegistrationApi/TMR_AgentRegistrationApi.csproj" />
+</Solution>
