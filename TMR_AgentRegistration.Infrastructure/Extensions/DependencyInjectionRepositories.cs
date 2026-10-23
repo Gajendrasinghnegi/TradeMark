@@ -18,13 +18,14 @@ namespace TMR_AgentRegistration.Infrastructure.Extensions
     {
         public static IServiceCollection AddInfrastructureServices(this IServiceCollection services)
         {
-            services.AddSingleton<IOracleConnectionFactory, OracleConnectionFactory>();
+            services.AddScoped<ISqlConnectionFactory, SqlConnectionFactory>();
             services.AddScoped<IAgentApplicationRepository, AgentApplicationRepository>();
             services.AddScoped<IAgentLoginRepository, AgentLoginRepository>();
             services.AddScoped<IEmailTemplateRepository, EmailTemplateRepository>();
             services.AddScoped<IAccountSetupOptionRepository, AccountSetupOptionRepository>();
             services.AddScoped<IProfessionalApplicantRepository, ProfessionalApplicantRepository>();
-
+            services.AddScoped<IForgotPasswordRepository, ForgotPasswordRepository>();
+            services.AddScoped<IForgotUserIdRepository, ForgotUserIdRepository>();
 
             return services;
         }

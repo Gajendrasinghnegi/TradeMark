@@ -18,7 +18,7 @@ namespace TMR_AgentRegistration.Application.Dtos
         [StringLength(2, ErrorMessage = "Entry No cannot exceed 2 characters")]
         public string EntryNo { get; set; } = string.Empty;
 
-        // TEMP: Auth/Login system 
+        // Auth/Login system 
         [Required(ErrorMessage = "Party Type is required")]
         [StringLength(1, ErrorMessage = "Party Type must be a single character")]
         public string PartyType { get; set; } = string.Empty;

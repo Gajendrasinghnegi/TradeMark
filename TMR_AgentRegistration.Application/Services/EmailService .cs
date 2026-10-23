@@ -24,17 +24,14 @@ namespace TMR_AgentRegistration.Application.Services
 
         public async Task<bool> SendEmailAsync(EmailRequestDto request)
         {
-            // Step 1: Fetch BODY_HTML from ONLINE_EMAIL_TEMPLATE table
+
             var template = await _templateRepository.GetTemplateByCodeAsync(request.TemplateCode);
             if (template == null) return false;
 
-            // Step 2: Replace {{PLACEHOLDER}} tokens
             string finalSubject = ReplacePlaceholders(template.Subject, request.Placeholders);
             string finalBody = ReplacePlaceholders(template.BodyHtml, request.Placeholders);
 
-            // Step 3: Call the government WCF MailService directly
             string result = await CallMailServiceAsync(request.ToEmail, finalSubject, finalBody);
-
             string decisionCode = result.Contains('/') ? result.Substring(0, result.IndexOf('/')) : result;
             return decisionCode == "0";
         }
@@ -45,7 +42,6 @@ namespace TMR_AgentRegistration.Application.Services
                 source = source.Replace("{{" + kvp.Key + "}}", kvp.Value);
             return source;
         }
-        // Actual WCF call - kept private here since no other
 
         private async Task<string> CallMailServiceAsync(string toEmail, string subject, string body)
         {
@@ -89,9 +85,8 @@ namespace TMR_AgentRegistration.Application.Services
                 return "ERROR/" + ex.Message;
             }
         }
-        // WCF contract - private, only EmailService uses this
-        // Matches the real WSDL: interface name is "IService"
    
+        // Matches the real WSDL: interface name is "IService"
         [ServiceContract(Namespace = "http://tempuri.org/", Name = "IService")]
         private interface IMailContract
         {

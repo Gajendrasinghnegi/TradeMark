@@ -8,12 +8,17 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TMR_AgentRegistration.Application\TMR_AgentRegistration.Application.csproj" />
     <ProjectReference Include="..\TMR_AgentRegistration.Infrastructure\TMR_AgentRegistration.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Controllers\BackOffice\" />
   </ItemGroup>
 
 </Project>

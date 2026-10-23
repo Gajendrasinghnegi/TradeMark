@@ -13,6 +13,7 @@ using TMR_AgentRegistration.Application.Extensions;
 using TMR_AgentRegistration.Application.IServices;
 using TMR_AgentRegistration.Domain.Entities.Common;
 using TMR_AgentRegistration.Domain.IRepositories;
+using static TMR_AgentRegistration.Application.Dtos.AgentLogin.ForgotPassword;
 
 namespace TMR_AgentRegistration.Application.Services
 {
@@ -22,13 +23,17 @@ namespace TMR_AgentRegistration.Application.Services
         private readonly IEmailService _emailService;
         private readonly JwtSettings _jwtSettings;
         private readonly ISmsService _smsService;
+        private readonly IForgotPasswordRepository _forgotPasswordRepository;
+        private readonly IForgotUserIdRepository _forgotUserIdRepository;
 
-        public AgentLoginService(IAgentLoginRepository agentLoginRepository, IEmailService emailService, IOptions<JwtSettings> jwtSettings, ISmsService smsService)
+        public AgentLoginService(IAgentLoginRepository agentLoginRepository, IEmailService emailService, IOptions<JwtSettings> jwtSettings, ISmsService smsService, IForgotPasswordRepository forgotPasswordRepository, IForgotUserIdRepository forgotUserIdRepository)
         {
             _agentLoginRepository = agentLoginRepository;
             _emailService = emailService;
             _jwtSettings = jwtSettings.Value;
             _smsService = smsService;
+            _forgotPasswordRepository = forgotPasswordRepository;
+            _forgotUserIdRepository = forgotUserIdRepository;
         }
         //  send OTP to email
         public async Task<RepositoryResult<string>> CheckQualifiedAgentAsync(CheckQualifiedAgentRequestDto dto)
@@ -51,8 +56,7 @@ namespace TMR_AgentRegistration.Application.Services
                 }
             };
             bool emailSent = await _emailService.SendEmailAsync(emailRequest);
-            //if (!emailSent)
-            if (emailSent)
+            if (!emailSent)
             {
                 return new RepositoryResult<string>
                 {
@@ -101,7 +105,7 @@ namespace TMR_AgentRegistration.Application.Services
         }
         //  verify password hash, generate JWT, update last login
         public async Task<RepositoryResult<AgentLoginResponseDto>> LoginAsync(AgentLoginRequestDto dto)
-         {
+        {
             var repoResult = await _agentLoginRepository.AgentLoginAsync(dto.UserId);
             if (!repoResult.IsSuccess)
             {
@@ -151,6 +155,144 @@ namespace TMR_AgentRegistration.Application.Services
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+        // Generates OTP for password reset and sends it to the user's registered email
+        public async Task<RepositoryResult<string>> RequestResetOtpAsync(RequestResetOtpDto dto)
+        {
+            var repoResult = await _forgotPasswordRepository.RequestResetOtpAsync(dto.UserId);
+            if (!repoResult.IsSuccess)
+            {
+                return new RepositoryResult<string> { IsSuccess = false, Message = repoResult.Message };
+            }
+            // Build email request using the OTP and email returned from the SP
+            var emailRequest = new EmailRequestDto
+            {
+                TemplateCode = "FORGOT_PASSWORD_OTP",
+                ToEmail = repoResult.Id.Email,
+                ToName = repoResult.Id.Email, // Full name not available here, using email as fallback
+                Placeholders = new Dictionary<string, string>
+              {{ "OTP_CODE", repoResult.Id.OtpCode }}      
+            };
+
+            bool emailSent = await _emailService.SendEmailAsync(emailRequest);
+            if (!emailSent)
+            {
+                return new RepositoryResult<string>
+                {
+                    IsSuccess = false,
+                    Message = "OTP generated successfully, but email could not be sent."
+                };
+            }
+
+            return new RepositoryResult<string>
+            {
+                IsSuccess = true,
+                Message = "OTP sent successfully to your registered email."
+            };
+        }
+        public async Task<RepositoryResult<string>> VerifyResetOtpAsync(VerifyResetOtpDto dto)
+        {
+            var repoResult = await _forgotPasswordRepository.VerifyResetOtpAsync(dto.UserId, dto.OtpCode);
+            return new RepositoryResult<string>
+            {
+                IsSuccess = repoResult.IsSuccess,
+                Message = repoResult.Message
+            };
+        }
+
+        public async Task<RepositoryResult<string>> ResetPasswordAsync(ResetPasswordDto dto)
+        {
+            // Password 
+            string hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            var repoResult = await _forgotPasswordRepository.ResetPasswordAsync(dto.UserId, hashedPassword);
+            return new RepositoryResult<string>
+            {
+                IsSuccess = repoResult.IsSuccess,
+                Message = repoResult.Message
+            };
+        }
+        // Sends separate OTP to Email and separate OTP to Mobile
+        public async Task<RepositoryResult<string>> RequestUserIdOtpAsync(RequestUserIdOtpDto dto)
+        {
+            var repoResult = await _forgotUserIdRepository.RequestUserIdOtpAsync(dto.Email, dto.MobileNumber);
+
+            if (!repoResult.IsSuccess)
+            {
+                return new RepositoryResult<string> { IsSuccess = false, Message = repoResult.Message };
+            }
+
+            // Send EMAIL OTP
+            var emailRequest = new EmailRequestDto
+            {
+                TemplateCode = "FORGOT_USERID_OTP",
+                ToEmail = dto.Email,
+                ToName = dto.Email,
+                Placeholders = new Dictionary<string, string>
+        {
+            { "OTP_CODE", repoResult.Id.EmailOtp }
+        }
+            };
+            bool emailSent = await _emailService.SendEmailAsync(emailRequest);
+
+            // Send MOBILE OTP
+            var smsRequest = new SmsRequestDto
+            {
+                MobileNumber = dto.MobileNumber,
+                Message = $"Your OTP to recover User ID is {repoResult.Id.MobileOtp}. Valid for 10 minutes."
+            };
+            bool smsSent = await _smsService.SendSmsAsync(smsRequest);
+
+            if (!emailSent && !smsSent)
+            {
+                return new RepositoryResult<string> { IsSuccess = false, Message = "OTP generated, but could not be sent via email or SMS." };
+            }
+
+            string msg = "OTP sent to your registered ";
+            msg += emailSent && smsSent ? "email and mobile number." :
+                   emailSent ? "email. SMS delivery failed." :
+                   "mobile number. Email delivery failed.";
+
+            return new RepositoryResult<string> { IsSuccess = true, Message = msg };
+        }
+
+        // Verifies one OTP at a time - called once for EMAIL, once for MOBILE
+        public async Task<RepositoryResult<string>> VerifyUserIdOtpAsync(VerifyUserIdOtpDto dto)
+        {
+            var repoResult = await _forgotUserIdRepository.VerifyUserIdOtpAsync(dto.Email, dto.MobileNumber, dto.OtpType, dto.OtpCode);
+            return new RepositoryResult<string>
+            {
+                IsSuccess = repoResult.IsSuccess,
+                Message = repoResult.Message
+            };
+        }
+
+        // Called after both EMAIL and MOBILE OTPs are verified - fetches and emails the UserID
+        public async Task<RepositoryResult<string>> GetUserIdAfterVerificationAsync(GetUserIdDto dto)
+        {
+            var repoResult = await _forgotUserIdRepository.GetUserIdAfterVerificationAsync(dto.Email, dto.MobileNumber);
+
+            if (!repoResult.IsSuccess)
+            {
+                return new RepositoryResult<string> { IsSuccess = false, Message = repoResult.Message };
+            }
+
+            var emailRequest = new EmailRequestDto
+            {
+                TemplateCode = "USERID_RECOVERY_MAIL",
+                ToEmail = dto.Email,
+                ToName = dto.Email,
+                Placeholders = new Dictionary<string, string>
+        {
+            { "USER_ID", repoResult.Id.UserId }
+        }
+            };
+            bool emailSent = await _emailService.SendEmailAsync(emailRequest);
+
+            return new RepositoryResult<string>
+            {
+                IsSuccess = emailSent,
+                Message = emailSent ? "Your UserID has been sent to your registered email." : "Verified, but email could not be sent."
+            };
         }
     }
 }

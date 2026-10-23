@@ -11,31 +11,25 @@ namespace TMR_AgentRegistration.Application.Dtos.AgentLogin
         public string RollNumber { get; set; }
         public string DateOfBirth { get; set; }
     }
-
-    // sent twice - once for EMAIL otp, once for MOBILE otp
     public class VerifyOtpRequestDto
     {
         public string RollNumber { get; set; }
         public string OtpType { get; set; }   // "EMAIL" or "MOBILE"
         public string OtpCode { get; set; }
     }
-
-    //  sent after both OTPs verified, agent sets UserID/Password
     public class CreateLoginCredentialRequestDto
     {
         public string RollNumber { get; set; }
         public string UserId { get; set; }
-        public string Password { get; set; }   // plain text from frontend, will be hashed before storing
+        public string Password { get; set; }  
     }
-
-    // normal login screen
     public class AgentLoginRequestDto
     {
         public string UserId { get; set; }
         public string Password { get; set; }
     }
 
-    // Returned only after successful login - contains JWT token
+    // Returned only after successful login(JWT token)
     public class AgentLoginResponseDto
     {
         public string Token { get; set; }

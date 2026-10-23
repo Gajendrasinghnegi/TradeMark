@@ -1,4 +1,4 @@
-﻿using Oracle.ManagedDataAccess.Client;
+﻿using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -14,12 +14,17 @@ namespace TMR_AgentRegistration.Infrastructure.Repositories
 {
     public class AgentApplicationRepository : IAgentApplicationRepository
     {
-        private readonly IOracleConnectionFactory _connectionFactory;
+        private readonly ISqlConnectionFactory _connectionFactory;
 
-        public AgentApplicationRepository(IOracleConnectionFactory connectionFactory)
+        public AgentApplicationRepository(ISqlConnectionFactory connectionFactory)
         {
             _connectionFactory = connectionFactory;
         }
+        private static void AddInput(SqlCommand command, string name, object? value)
+        {
+            command.Parameters.Add(new SqlParameter(name, value ?? DBNull.Value));
+        }
+
         public async Task<RepositoryResult<int>> SaveApplicationAsync(AgentApplication app)
         {
             try
@@ -29,57 +34,55 @@ namespace TMR_AgentRegistration.Infrastructure.Repositories
                 command.CommandText = "SP_AGENT_APPLICATION_SAVE";
                 command.CommandType = CommandType.StoredProcedure;
 
-                // All INPUT parameters ----------
-                command.Parameters.Add(new OracleParameter("P_APPLICATION_TYPE", app.ApplicationType));
-                command.Parameters.Add(new OracleParameter("P_FORM_NUMBER", app.FormNumber));
-                command.Parameters.Add(new OracleParameter("P_PARTY_TYPE", app.PartyType));
-                command.Parameters.Add(new OracleParameter("P_PARTY_CODE", app.PartyCode));
-                command.Parameters.Add(new OracleParameter("P_BRANCH_CODE", app.BranchCode));
-                command.Parameters.Add(new OracleParameter("P_FORM_AMOUNT", app.FormAmount));
-                command.Parameters.Add(new OracleParameter("P_LAST_UPDATED_BY", app.LastUpdatedBy));
-                command.Parameters.Add(new OracleParameter("P_HTML_PREVIEW", app.HtmlPreview));
-                command.Parameters.Add(new OracleParameter("P_ENTRY_NO", app.EntryNo));
-                command.Parameters.Add(new OracleParameter("P_NAME", app.Name));
-                command.Parameters.Add(new OracleParameter("P_ADDRESS", app.Address));
-                command.Parameters.Add(new OracleParameter("P_PLACE_OF_BUSINESS", app.PlaceOfBusiness));
-                command.Parameters.Add(new OracleParameter("P_NATIONALITY", app.Nationality));
-                command.Parameters.Add(new OracleParameter("P_DATE_OF_BIRTH", app.DateOfBirth));
-                command.Parameters.Add(new OracleParameter("P_PLACE_OF_BIRTH", app.PlaceOfBirth));
-                command.Parameters.Add(new OracleParameter("P_OCCUPATION", app.Occupation));
-                command.Parameters.Add(new OracleParameter("P_QUALIFICATION", app.Qualification));
-                command.Parameters.Add(new OracleParameter("P_REMOVED_FROM_TM", app.RemovedFromTrademark));
+                // All parameters -----
+                AddInput(command, "@P_APPLICATION_TYPE", app.ApplicationType);
+                AddInput(command, "@P_FORM_NUMBER", app.FormNumber);
+                AddInput(command, "@P_PARTY_TYPE", app.PartyType);
+                AddInput(command, "@P_PARTY_CODE", app.PartyCode);
+                AddInput(command, "@P_BRANCH_CODE", app.BranchCode);
+                AddInput(command, "@P_FORM_AMOUNT", app.FormAmount);
+                AddInput(command, "@P_LAST_UPDATED_BY", app.LastUpdatedBy);
+                AddInput(command, "@P_HTML_PREVIEW", app.HtmlPreview);
+                AddInput(command, "@P_ENTRY_NO", app.EntryNo);
+                AddInput(command, "@P_NAME", app.Name);
+                AddInput(command, "@P_ADDRESS", app.Address);
+                AddInput(command, "@P_PLACE_OF_BUSINESS", app.PlaceOfBusiness);
+                AddInput(command, "@P_NATIONALITY", app.Nationality);
+                AddInput(command, "@P_DATE_OF_BIRTH", app.DateOfBirth);
+                AddInput(command, "@P_PLACE_OF_BIRTH", app.PlaceOfBirth);
+                AddInput(command, "@P_OCCUPATION", app.Occupation);
+                AddInput(command, "@P_QUALIFICATION", app.Qualification);
+                AddInput(command, "@P_REMOVED_FROM_TM", app.RemovedFromTrademark);
 
-                var removalDateParam = new OracleParameter("P_REMOVAL_DATE", OracleDbType.Date);
+                var removalDateParam = new SqlParameter("@P_REMOVAL_DATE", SqlDbType.Date);
                 removalDateParam.Value = (object?)app.RemovalDate ?? DBNull.Value;
                 command.Parameters.Add(removalDateParam);
 
-                command.Parameters.Add(new OracleParameter("P_MOBILE_NO", app.MobileNo));
-                command.Parameters.Add(new OracleParameter("P_EMAIL", app.Email));
+                AddInput(command, "@P_MOBILE_NO", app.MobileNo);
+                AddInput(command, "@P_EMAIL", app.Email);
+                AddInput(command, "@P_PHOTO_PATH", app.PhotoPath);
+                AddInput(command, "@P_AGE_PROOF_PATH", app.AgeProofPath);
+                AddInput(command, "@P_QUALIFICATION_CERT_PATH", app.QualificationCertPath);
+                AddInput(command, "@P_CITIZENSHIP_PROOF_PATH", app.CitizenshipProofPath);
 
-                command.Parameters.Add(new OracleParameter("P_PHOTO_PATH", app.PhotoPath));
-                command.Parameters.Add(new OracleParameter("P_AGE_PROOF_PATH", app.AgeProofPath));
-                command.Parameters.Add(new OracleParameter("P_QUALIFICATION_CERT_PATH", app.QualificationCertPath));
-                command.Parameters.Add(new OracleParameter("P_CITIZENSHIP_PROOF_PATH", app.CitizenshipProofPath));
-
-                var appNumberParam = new OracleParameter("P_APPLICATION_NUMBER", OracleDbType.Decimal)
+                var appNumberParam = new SqlParameter("@P_APPLICATION_NUMBER", SqlDbType.Decimal)
                 {
+                    Precision = 18,
+                    Scale = 0,
                     Direction = ParameterDirection.Output
                 };
                 command.Parameters.Add(appNumberParam);
-
-                var statusParam = new OracleParameter("P_STATUS", OracleDbType.Varchar2, 50)
+                var statusParam = new SqlParameter("@P_STATUS", SqlDbType.VarChar, 50)
                 {
                     Direction = ParameterDirection.Output
                 };
                 command.Parameters.Add(statusParam);
-
-                var messageParam = new OracleParameter("P_MESSAGE", OracleDbType.Varchar2, 500)
+                var messageParam = new SqlParameter("@P_MESSAGE", SqlDbType.VarChar, 500)
                 {
                     Direction = ParameterDirection.Output
                 };
                 command.Parameters.Add(messageParam);
 
-            
                 await connection.OpenAsync();
                 await command.ExecuteNonQueryAsync();
                 bool isSuccess = statusParam.Value.ToString() == "SUCCESS";
@@ -100,60 +103,54 @@ namespace TMR_AgentRegistration.Infrastructure.Repositories
                 };
             }
         }
+
         public async Task<RepositoryResult<AgentApplication?>> GetApplicationAsync(int applicationNumber)
         {
             try
             {
                 using var connection = _connectionFactory.CreateConnection();
                 using var command = connection.CreateCommand();
-
-                command.CommandText = "SP_AGENT_APPLICATION_GET";
+                command.CommandText = "USP_AGENT_APPLICATION_GET";
                 command.CommandType = CommandType.StoredProcedure;
+                AddInput(command, "@P_ACTION", "GETDATA");
+                AddInput(command, "@P_APPLICATION_NUMBER", applicationNumber);
 
-                command.Parameters.Add(new OracleParameter("P_ACTION", "GETDATA"));
-                command.Parameters.Add(new OracleParameter("P_APPLICATION_NUMBER", applicationNumber));
-                var cursorParam = new OracleParameter("P_RESULT", OracleDbType.RefCursor)
-                {
-                    Direction = ParameterDirection.Output
-                };
-                command.Parameters.Add(cursorParam);
-                var statusParam = new OracleParameter("P_STATUS", OracleDbType.Varchar2, 50)
+                var statusParam = new SqlParameter("@P_STATUS", SqlDbType.VarChar, 50)
                 {
                     Direction = ParameterDirection.Output
                 };
                 command.Parameters.Add(statusParam);
-                var messageParam = new OracleParameter("P_MESSAGE", OracleDbType.Varchar2, 500)
+                var messageParam = new SqlParameter("@P_MESSAGE", SqlDbType.VarChar, 500)
                 {
                     Direction = ParameterDirection.Output
                 };
                 command.Parameters.Add(messageParam);
-
                 await connection.OpenAsync();
 
                 AgentApplication? app = null;
-                using (var reader = await command.ExecuteReaderAsync())
+                using (var dr = await command.ExecuteReaderAsync())
                 {
-                    if (await reader.ReadAsync())
+                    if (await dr.ReadAsync())
                     {
                         app = new AgentApplication
                         {
-                            ApplicationNumber = Convert.ToInt32(reader["APPLICATION_NUMBER"]),
-                            BranchCode = reader["BRANCH_CODE"].ToString() ?? string.Empty,
-                            EntryNo = reader["ENTRY_NO"].ToString() ?? string.Empty,
-                            PartyType = reader["PARTY_TYPE"].ToString() ?? string.Empty,
-                            PartyCode = reader["PARTY_CODE"].ToString() ?? string.Empty,
-                            Name = reader["NAME"].ToString() ?? string.Empty,
-                            Address = reader["ADDRESS"].ToString() ?? string.Empty,
-                            PlaceOfBusiness = reader["PLACE_OF_BUSINESS"].ToString() ?? string.Empty,
-                            Nationality = reader["NATIONALITY"].ToString() ?? string.Empty,
-                            DateOfBirth = Convert.ToDateTime(reader["DATE_OF_BIRTH"]),
-                            PlaceOfBirth = reader["PLACE_OF_BIRTH"].ToString() ?? string.Empty,
-                            Occupation = reader["OCCUPATION"].ToString() ?? string.Empty,
-                            Qualification = reader["QUALIFICATION"].ToString() ?? string.Empty,
-                            RemovedFromTrademark = reader["REMOVED_FROM_TRADEMARK"].ToString() ?? "N",
-                            RemovalDate = reader["REMOVAL_DATE"] == DBNull.Value ? null : Convert.ToDateTime(reader["REMOVAL_DATE"]),
-                            MobileNo = reader["MOBILE_NO"].ToString() ?? string.Empty,
-                            Email = reader["EMAIL"].ToString() ?? string.Empty
+                            ApplicationNumber = Convert.ToInt32(dr["APPLICATION_NUMBER"]),
+                            BranchCode = dr["BRANCH_CODE"].ToString() ?? string.Empty,
+                            EntryNo = dr["ENTRY_NO"].ToString() ?? string.Empty,
+                            PartyType = dr["PARTY_TYPE"].ToString() ?? string.Empty,
+                            PartyCode = dr["PARTY_CODE"].ToString() ?? string.Empty,
+                            Name = dr["NAME"].ToString() ?? string.Empty,
+                            Address = dr["ADDRESS"].ToString() ?? string.Empty,
+                            PlaceOfBusiness = dr["PLACE_OF_BUSINESS"].ToString() ?? string.Empty,
+                            Nationality = dr["NATIONALITY"].ToString() ?? string.Empty,
+                            DateOfBirth = Convert.ToDateTime(dr["DATE_OF_BIRTH"]),
+                            PlaceOfBirth = dr["PLACE_OF_BIRTH"].ToString() ?? string.Empty,
+                            Occupation = dr["OCCUPATION"].ToString() ?? string.Empty,
+                            Qualification = dr["QUALIFICATION"].ToString() ?? string.Empty,
+                            RemovedFromTrademark = dr["REMOVED_FROM_TRADEMARK"].ToString() ?? "N",
+                            RemovalDate = dr["REMOVAL_DATE"] == DBNull.Value ? null : Convert.ToDateTime(dr["REMOVAL_DATE"]),
+                            MobileNo = dr["MOBILE_NO"].ToString() ?? string.Empty,
+                            Email = dr["EMAIL"].ToString() ?? string.Empty
                         };
                     }
                 }
@@ -177,6 +174,7 @@ namespace TMR_AgentRegistration.Infrastructure.Repositories
                 };
             }
         }
+
         public async Task<RepositoryResult<AgentApplication?>> GetApplicationByPartyAsync(string partyCode)
         {
             try
@@ -184,58 +182,48 @@ namespace TMR_AgentRegistration.Infrastructure.Repositories
                 using var connection = _connectionFactory.CreateConnection();
                 using var command = connection.CreateCommand();
 
-                command.CommandText = "SP_AGENT_APPLICATION_GET";
+                command.CommandText = "USP_AGENT_APPLICATION_GET";
                 command.CommandType = CommandType.StoredProcedure;
+                AddInput(command, "@P_ACTION", "GETBYPARTY");
+                AddInput(command, "@P_APPLICATION_NUMBER", 0);
+                AddInput(command, "@P_PARTY_CODE", partyCode);
 
-                command.Parameters.Add(new OracleParameter("P_ACTION", "GETBYPARTY"));
-                command.Parameters.Add(new OracleParameter("P_APPLICATION_NUMBER", 0));
-                command.Parameters.Add(new OracleParameter("P_PARTY_CODE", partyCode));
-
-                var cursorParam = new OracleParameter("P_RESULT", OracleDbType.RefCursor)
-                {
-                    Direction = ParameterDirection.Output
-                };
-                command.Parameters.Add(cursorParam);
-
-                var statusParam = new OracleParameter("P_STATUS", OracleDbType.Varchar2, 50)
+                var statusParam = new SqlParameter("@P_STATUS", SqlDbType.VarChar, 50)
                 {
                     Direction = ParameterDirection.Output
                 };
                 command.Parameters.Add(statusParam);
-
-                var messageParam = new OracleParameter("P_MESSAGE", OracleDbType.Varchar2, 500)
+                var messageParam = new SqlParameter("@P_MESSAGE", SqlDbType.VarChar, 500)
                 {
                     Direction = ParameterDirection.Output
                 };
                 command.Parameters.Add(messageParam);
-
                 await connection.OpenAsync();
-
                 AgentApplication? app = null;
 
-                using (var reader = await command.ExecuteReaderAsync())
+                using (var dr = await command.ExecuteReaderAsync())
                 {
-                    if (await reader.ReadAsync())
+                    if (await dr.ReadAsync())
                     {
                         app = new AgentApplication
                         {
-                            ApplicationNumber = Convert.ToInt32(reader["APPLICATION_NUMBER"]),
-                            BranchCode = reader["BRANCH_CODE"].ToString() ?? string.Empty,
-                            EntryNo = reader["ENTRY_NO"].ToString() ?? string.Empty,
-                            PartyType = reader["PARTY_TYPE"].ToString() ?? string.Empty,
-                            PartyCode = reader["PARTY_CODE"].ToString() ?? string.Empty,
-                            Name = reader["NAME"].ToString() ?? string.Empty,
-                            Address = reader["ADDRESS"].ToString() ?? string.Empty,
-                            PlaceOfBusiness = reader["PLACE_OF_BUSINESS"].ToString() ?? string.Empty,
-                            Nationality = reader["NATIONALITY"].ToString() ?? string.Empty,
-                            DateOfBirth = Convert.ToDateTime(reader["DATE_OF_BIRTH"]),
-                            PlaceOfBirth = reader["PLACE_OF_BIRTH"].ToString() ?? string.Empty,
-                            Occupation = reader["OCCUPATION"].ToString() ?? string.Empty,
-                            Qualification = reader["QUALIFICATION"].ToString() ?? string.Empty,
-                            RemovedFromTrademark = reader["REMOVED_FROM_TRADEMARK"].ToString() ?? "N",
-                            RemovalDate = reader["REMOVAL_DATE"] == DBNull.Value ? null : Convert.ToDateTime(reader["REMOVAL_DATE"]),
-                            MobileNo = reader["MOBILE_NO"].ToString() ?? string.Empty,
-                            Email = reader["EMAIL"].ToString() ?? string.Empty
+                            ApplicationNumber = Convert.ToInt32(dr["APPLICATION_NUMBER"]),
+                            BranchCode = dr["BRANCH_CODE"].ToString() ?? string.Empty,
+                            EntryNo = dr["ENTRY_NO"].ToString() ?? string.Empty,
+                            PartyType = dr["PARTY_TYPE"].ToString() ?? string.Empty,
+                            PartyCode = dr["PARTY_CODE"].ToString() ?? string.Empty,
+                            Name = dr["NAME"].ToString() ?? string.Empty,
+                            Address = dr["ADDRESS"].ToString() ?? string.Empty,
+                            PlaceOfBusiness = dr["PLACE_OF_BUSINESS"].ToString() ?? string.Empty,
+                            Nationality = dr["NATIONALITY"].ToString() ?? string.Empty,
+                            DateOfBirth = Convert.ToDateTime(dr["DATE_OF_BIRTH"]),
+                            PlaceOfBirth = dr["PLACE_OF_BIRTH"].ToString() ?? string.Empty,
+                            Occupation = dr["OCCUPATION"].ToString() ?? string.Empty,
+                            Qualification = dr["QUALIFICATION"].ToString() ?? string.Empty,
+                            RemovedFromTrademark = dr["REMOVED_FROM_TRADEMARK"].ToString() ?? "N",
+                            RemovalDate = dr["REMOVAL_DATE"] == DBNull.Value ? null : Convert.ToDateTime(dr["REMOVAL_DATE"]),
+                            MobileNo = dr["MOBILE_NO"].ToString() ?? string.Empty,
+                            Email = dr["EMAIL"].ToString() ?? string.Empty
                         };
                     }
                 }

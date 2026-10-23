@@ -1,113 +1,89 @@
-﻿using Oracle.ManagedDataAccess.Client;
-using Oracle.ManagedDataAccess.Types;
+﻿using Microsoft.Data.SqlClient;
 using System;
-using System.Collections.Generic;
 using System.Data;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using TMR_AgentRegistration.Domain.IRepositories;
 using TMR_AgentRegistration.Infrastructure.Common;
 
 namespace TMR_AgentRegistration.Infrastructure.Repositories
 {
-    public class ProfessionalApplicantRepository: IProfessionalApplicantRepository
+    public class ProfessionalApplicantRepository : IProfessionalApplicantRepository
     {
-        private readonly IOracleConnectionFactory _connectionFactory;
+        private readonly ISqlConnectionFactory _connectionFactory;
 
-        public ProfessionalApplicantRepository(IOracleConnectionFactory connectionFactory)
+        public ProfessionalApplicantRepository(ISqlConnectionFactory connectionFactory)
         {
             _connectionFactory = connectionFactory;
         }
-        public async Task<(bool IsSuccess, string Message, string FullName, string Email, string Mobile, string EmailOtp, string MobileOtp)>
-           CheckProfessionalApplicantAsync(string qualificationBasis, string enrolmentNo, string fullName, string email, string mobile)
+
+        public async Task<(bool IsSuccess, string Message, string FullName, string Email, string Mobile, string EmailOtp, string MobileOtp)>CheckProfessionalApplicantAsync(string qualificationBasis, string enrolmentNo, string fullName, string email, string mobile)
         {
-            using var connection = (OracleConnection)_connectionFactory.CreateConnection();
-            if (connection.State != ConnectionState.Open)
-                connection.Open();
-
-            using var command = connection.CreateCommand();
-            command.CommandText = "SP_CHECK_PROFESSIONAL_APPLICANT";
-            command.CommandType = CommandType.StoredProcedure;
-
-            command.Parameters.Add("p_qualification_basis", OracleDbType.Varchar2, 30, qualificationBasis, ParameterDirection.Input);
-            command.Parameters.Add("p_enrolment_no", OracleDbType.Varchar2, 100, enrolmentNo, ParameterDirection.Input);
-            command.Parameters.Add("p_full_name", OracleDbType.Varchar2, 150, fullName, ParameterDirection.Input);
-            command.Parameters.Add("p_email", OracleDbType.Varchar2, 150, email, ParameterDirection.Input);
-            command.Parameters.Add("p_mobile", OracleDbType.Varchar2, 10, mobile, ParameterDirection.Input);
-
-            // NEW: OUT parameters to receive the data back from the SP
-            command.Parameters.Add("p_out_full_name", OracleDbType.Varchar2, 150, null, ParameterDirection.Output);
-            command.Parameters.Add("p_out_email", OracleDbType.Varchar2, 150, null, ParameterDirection.Output);
-            command.Parameters.Add("p_out_mobile", OracleDbType.Varchar2, 10, null, ParameterDirection.Output);
-            command.Parameters.Add("p_out_email_otp", OracleDbType.Varchar2, 6, null, ParameterDirection.Output);
-            command.Parameters.Add("p_out_mobile_otp", OracleDbType.Varchar2, 6, null, ParameterDirection.Output);
-
-            command.Parameters.Add("p_status", OracleDbType.Int32, ParameterDirection.Output);
-            command.Parameters.Add("p_message", OracleDbType.Varchar2, 500, null, ParameterDirection.Output);
-
-            await command.ExecuteNonQueryAsync();
-
-            int status = Convert.ToInt32(((OracleDecimal)command.Parameters["p_status"].Value).Value);
-            string message = ((OracleString)command.Parameters["p_message"].Value).Value;
-
-            // If the procedure returned early (already registered), OUT fields will be null - guard with IsNull check
-            string outFullName = ((OracleString)command.Parameters["p_out_full_name"].Value).IsNull ? null : ((OracleString)command.Parameters["p_out_full_name"].Value).Value;
-            string outEmail = ((OracleString)command.Parameters["p_out_email"].Value).IsNull ? null : ((OracleString)command.Parameters["p_out_email"].Value).Value;
-            string outMobile = ((OracleString)command.Parameters["p_out_mobile"].Value).IsNull ? null : ((OracleString)command.Parameters["p_out_mobile"].Value).Value;
-            string outEmailOtp = ((OracleString)command.Parameters["p_out_email_otp"].Value).IsNull ? null : ((OracleString)command.Parameters["p_out_email_otp"].Value).Value;
-            string outMobileOtp = ((OracleString)command.Parameters["p_out_mobile_otp"].Value).IsNull ? null : ((OracleString)command.Parameters["p_out_mobile_otp"].Value).Value;
-
-            return (status == 1, message, outFullName, outEmail, outMobile, outEmailOtp, outMobileOtp);
+            var result = await ExecuteMasterSpAsync(query: "CHECK_APPLICANT", qualificationBasis: qualificationBasis, enrolmentNo: enrolmentNo, fullName: fullName, email: email, mobile: mobile);
+            return (result.IsSuccess, result.Message, result.OutFullName, result.OutEmail, result.OutMobile, result.OutEmailOtp, result.OutMobileOtp);
         }
+
         public async Task<(bool IsSuccess, string Message)> VerifyOtpAsync(string email, string otpType, string otpCode)
         {
-            using var connection = (OracleConnection)_connectionFactory.CreateConnection();
-            if (connection.State != ConnectionState.Open)
-                connection.Open();
-
-            using var command = connection.CreateCommand();
-            command.CommandText = "SP_VERIFY_PROFESSIONAL_OTP";
-            command.CommandType = CommandType.StoredProcedure;
-
-            command.Parameters.Add("p_email", OracleDbType.Varchar2, 150, email, ParameterDirection.Input);
-            command.Parameters.Add("p_otp_type", OracleDbType.Varchar2, 10, otpType, ParameterDirection.Input);
-            command.Parameters.Add("p_otp_code", OracleDbType.Varchar2, 6, otpCode, ParameterDirection.Input);
-
-            command.Parameters.Add("p_status", OracleDbType.Int32, ParameterDirection.Output);
-            command.Parameters.Add("p_message", OracleDbType.Varchar2, 500, null, ParameterDirection.Output);
-
-            await command.ExecuteNonQueryAsync();
-
-            int status = Convert.ToInt32(((OracleDecimal)command.Parameters["p_status"].Value).Value);
-            string message = ((OracleString)command.Parameters["p_message"].Value).Value;
-
-            return (status == 1, message);
+            var result = await ExecuteMasterSpAsync(query: "VERIFY_OTP", email: email, otpType: otpType, otpCode: otpCode);
+            return (result.IsSuccess, result.Message);
         }
 
-        public async Task<(bool IsSuccess, string Message)> CreateCredentialAsync(string email, string userId, string password)
+        public async Task<(bool IsSuccess, string Message)> CreateCredentialAsync(string email, string userId, string passwordHash)
         {
-            using var connection = (OracleConnection)_connectionFactory.CreateConnection();
-            if (connection.State != ConnectionState.Open)
-                connection.Open();
+            var result = await ExecuteMasterSpAsync(query: "CREATE_CREDENTIAL", email: email, userId: userId, passwordHash: passwordHash);
+            return (result.IsSuccess, result.Message);
+        }
 
-            using var command = connection.CreateCommand();
-            command.CommandText = "SP_CREATE_PROFESSIONAL_CREDENTIAL";
-            command.CommandType = CommandType.StoredProcedure;
+        private async Task<(bool IsSuccess, string Message, string OutFullName, string OutEmail, string OutMobile, string OutEmailOtp, string OutMobileOtp)> ExecuteMasterSpAsync(string query, string qualificationBasis = null, string enrolmentNo = null, string fullName = null, string email = null, string mobile = null, string otpType = null, string otpCode = null, string userId = null, string passwordHash = null)
+        {
+            try
+            {
+                using var connection = _connectionFactory.CreateConnection();
+                if (connection.State != ConnectionState.Open)
+                    await connection.OpenAsync();
 
-            command.Parameters.Add("p_email", OracleDbType.Varchar2, 150, email, ParameterDirection.Input);
-            command.Parameters.Add("p_user_id", OracleDbType.Varchar2, 100, userId, ParameterDirection.Input);
-            command.Parameters.Add("p_password", OracleDbType.Varchar2, 200, password, ParameterDirection.Input);
+                using var command = connection.CreateCommand();
+                command.CommandText = "USP_PROFESSIONAL_APPLICANT_MASTER";
+                command.CommandType = CommandType.StoredProcedure;
 
-            command.Parameters.Add("p_status", OracleDbType.Int32, ParameterDirection.Output);
-            command.Parameters.Add("p_message", OracleDbType.Varchar2, 500, null, ParameterDirection.Output);
+                // ---- IN parameters ----
+                command.Parameters.Add(new SqlParameter("@p_query", SqlDbType.VarChar) { Value = query });
+                command.Parameters.Add(new SqlParameter("@p_qualification_basis", SqlDbType.VarChar) { Value = (object)qualificationBasis ?? DBNull.Value });
+                command.Parameters.Add(new SqlParameter("@p_enrolment_no", SqlDbType.VarChar) { Value = (object)enrolmentNo ?? DBNull.Value });
+                command.Parameters.Add(new SqlParameter("@p_full_name", SqlDbType.VarChar) { Value = (object)fullName ?? DBNull.Value });
+                command.Parameters.Add(new SqlParameter("@p_email", SqlDbType.VarChar) { Value = (object)email ?? DBNull.Value });
+                command.Parameters.Add(new SqlParameter("@p_mobile", SqlDbType.VarChar) { Value = (object)mobile ?? DBNull.Value });
+                command.Parameters.Add(new SqlParameter("@p_otp_type", SqlDbType.VarChar) { Value = (object)otpType ?? DBNull.Value });
+                command.Parameters.Add(new SqlParameter("@p_otp_code", SqlDbType.VarChar) { Value = (object)otpCode ?? DBNull.Value });
+                command.Parameters.Add(new SqlParameter("@p_user_id", SqlDbType.VarChar) { Value = (object)userId ?? DBNull.Value });
+                command.Parameters.Add(new SqlParameter("@p_password_hash", SqlDbType.VarChar) { Value = (object)passwordHash ?? DBNull.Value });
 
-            await command.ExecuteNonQueryAsync();
+                // ---- OUT parameters ----
+                command.Parameters.Add(new SqlParameter("@p_out_full_name", SqlDbType.VarChar, 150) { Direction = ParameterDirection.Output });
+                command.Parameters.Add(new SqlParameter("@p_out_email", SqlDbType.VarChar, 150) { Direction = ParameterDirection.Output });
+                command.Parameters.Add(new SqlParameter("@p_out_mobile", SqlDbType.VarChar, 10) { Direction = ParameterDirection.Output });
+                command.Parameters.Add(new SqlParameter("@p_out_email_otp", SqlDbType.VarChar, 6) { Direction = ParameterDirection.Output });
+                command.Parameters.Add(new SqlParameter("@p_out_mobile_otp", SqlDbType.VarChar, 6) { Direction = ParameterDirection.Output });
+                command.Parameters.Add(new SqlParameter("@p_status", SqlDbType.Int) { Direction = ParameterDirection.Output });
+                command.Parameters.Add(new SqlParameter("@p_message", SqlDbType.VarChar, 500) { Direction = ParameterDirection.Output });
 
-            int status = Convert.ToInt32(((OracleDecimal)command.Parameters["p_status"].Value).Value);
-            string message = ((OracleString)command.Parameters["p_message"].Value).Value;
+                await command.ExecuteNonQueryAsync();
 
-            return (status == 1, message);
+                int status = Convert.ToInt32(command.Parameters["@p_status"].Value?.ToString() ?? "0");
+                string message = command.Parameters["@p_message"].Value?.ToString();
+
+                string outFullName = command.Parameters["@p_out_full_name"].Value?.ToString();
+                string outEmail = command.Parameters["@p_out_email"].Value?.ToString();
+                string outMobile = command.Parameters["@p_out_mobile"].Value?.ToString();
+                string outEmailOtp = command.Parameters["@p_out_email_otp"].Value?.ToString();
+                string outMobileOtp = command.Parameters["@p_out_mobile_otp"].Value?.ToString();
+
+                return (status == 1, message, outFullName, outEmail, outMobile, outEmailOtp, outMobileOtp);
+            }
+            catch (Exception ex)
+            {
+                return (false, "Database error: " + ex.Message, null, null, null, null, null);
+            }
         }
     }
 }

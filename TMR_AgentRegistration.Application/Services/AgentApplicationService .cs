@@ -74,8 +74,6 @@ namespace TMR_AgentRegistration.Application.Services
             };
         }
 
-        // Validates the file against DocumentUploadRules, saves it to disk,
-        // and returns the relative path to store in the DB.
         private async Task<(string Path, string? Error)> SaveDocumentAsync(IFormFile? file, string docKey, string subFolder)
         {
             var rule = DocumentUploadRules.Rules[docKey];
@@ -99,8 +97,7 @@ namespace TMR_AgentRegistration.Application.Services
             {
                 await file.CopyToAsync(stream);
             }
-
-            // Store only the relative path in the DB, e.g. UploadedFiles/Photos/xxxx.jpg
+           
             return ($"UploadedFiles/{subFolder}/{fileName}", null);
         }
 
